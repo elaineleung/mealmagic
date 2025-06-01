@@ -1,0 +1,328 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  background-color: white; 
+  text-align: center;
+}
+h1,
+h2,
+h3 {
+  color: #333;
+}
+.container {
+  display: flex;
+  gap: 20px;
+}
+.sidebar {
+  width: 200px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 8px;
+}
+.tab {
+  padding: 10px;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  cursor: pointer;
+  border-radius: 4px;
+  margin: 4px 0;
+  text-align: left;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+.tab:hover {
+  background-color: #e6e6e6;
+}
+.tab.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+.content {
+  display: block;
+  flex: 1;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 20px;
+  min-height: 400px;
+}
+.sub-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.sub-tab {
+  padding: 8px 16px;
+  background-color: #ddd;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+}
+.sub-tab.active {
+  background-color: #007bff;
+  color: white;
+}
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  max-width: 800px;
+  margin: 20px auto;
+}
+.table {
+  padding: 15px;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  text-align: center;
+  transition: transform 0.2s;
+}
+.table:hover {
+  transform: scale(1.05);
+}
+.table-empty {
+  background-color: #28a745;
+}
+.table-occupied {
+  background-color: #dc3545;
+}
+.table.disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+.control-panel,
+.table-details {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: white;
+  border-radius: 8px;
+  text-align: left;
+}
+input,
+select,
+.form-control {
+  padding: 8px;
+  margin: 8px 4px;
+  font-size: 16px;
+  width: calc(100% - 18px);
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+select[multiple] {
+  height: 100px;
+}
+button {
+  padding: 8px 16px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 4px;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+button:hover {
+  background-color: #0056b3;
+}
+.delete-btn {
+  background-color: #dc3545;
+}
+.delete-btn:hover {
+  background-color: #c82333;
+}
+dialog {
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 600px;
+  width: 90%;
+  background-color: white;
+  border: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+.pos-container {
+  display: flex;
+  gap: 20px;
+}
+.products,
+.cart {
+  padding: 10px;
+  background-color: white;
+  border-radius: 4px;
+}
+.products {
+  flex: 2;
+}
+.cart {
+  flex: 1;
+}
+.product-item {
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.product-item:hover {
+  background-color: #f0f0f0;
+}
+.cart-item {
+  padding: 5px 0;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.tab.category {
+  padding: 8px;
+  background-color: #ddd;
+  border-radius: 4px;
+}
+.tab.category.active {
+  background-color: #007bff;
+  color: white;
+}
+.quantity-controls button {
+  padding: 4px 8px;
+  font-size: 14px;
+}
+.option-dialog,
+.checkout-dialog,
+.confirm-dialog,
+.mealset-dialog {
+  max-width: 400px;
+  text-align: left;
+}
+.option-dialog select,
+.checkout-dialog input,
+.mealset-dialog select {
+  width: 100%;
+  padding: 8px;
+  margin: 8px 0;
+  font-size: 16px;
+}
+.number-pad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 10px 0;
+}
+.number-pad button {
+  padding: 10px;
+  font-size: 16px;
+}
+.order-history,
+.payment-history,
+.category-list,
+.option-list,
+.product-list,
+.mealset-category-list,
+.mealset-item-list,
+.mealset-step-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin: 10px 0;
+  background-color: white;
+  border-radius: 8px;
+}
+.category-list div,
+.option-list div,
+.product-list div,
+.mealset-category-list div,
+.mealset-item-list div,
+.mealset-step-list div,
+.order-history div.order-item,
+.payment-history div.payment-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  align-items: center;
+}
+.error-message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background-color: #dc3545;
+  color: white;
+  padding: 10px;
+  border-radius: 4px;
+  z-index: 1000;
+}
+.toggle-label {
+  display: inline-block;
+  margin: 8px 0;
+  font-size: 16px;
+}
+.toggle-checkbox {
+  display: none;
+}
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+  background-color: #ccc;
+  border-radius: 20px;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.toggle-switch::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background-color: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+}
+.toggle-checkbox:checked + .toggle-switch {
+  background-color: #28a745;
+}
+.toggle-checkbox:checked + .toggle-switch::before {
+  transform: translateX(20px);
+}
+.extra-charge {
+  margin: 10px 0;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+.extra-charge select,
+.extra-charge input {
+  width: calc(45% - 10px);
+  display: inline-block;
+}
+.extra-charge button {
+  padding: 4px 8px;
+}
+.hidden {
+  display: none;
+}
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+  #print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="./src/style.css">
+  <title>Document</title>
+</head>
+<body>
+  <h1>MealMagic</h1>
+  <div class="container">
+    <div class="sidebar">
+      <div class="tab active" onclick="openTab('home')">Home</div>
+      <div class="tab" onclick="openTab('records')">Payment Records</div>
+      <div class="tab" onclick="openTab('settings')">Item Settings</div>
+      <div class="tab" onclick="openTab('mealset')">套餐設定</div>
+    </div>
+    <div class="content" id="home-content">
+      <div class="table-grid" id="table-grid"></div>
+      <div class="control-panel" id="control-panel" style="display: none;">
+        <h3 id="table-title">Selected Table</h3>
+        <div id="open-table-controls">
+          <input type="number" id="num-guests" min="1" max="10" placeholder="1-10">
+          <button onclick="openTable()">Open Table</button>
+        </div>
+      </div>
+      <div class="table-details" id="table-details" style="display: none;">
+        <h3 id="table-details-title">Table Details</h3>
+        <div class="order-history" id="order-history"></div>
+        <h3>Total: $<span id="table-total">0</span></h3>
+        <button onclick="clearTable()">CLEAR TABLE</button>
+        <button onclick="printTable()">PRINT</button>
+        <button onclick="openCheckout()">CHECKOUT</button>
+      </div>
+    </div>
+    <div class="content" id="records-content" style="display: none;">
+      <h2>Payment Records</h2>
+      <div class="payment-history" id="payment-history"></div>
+    </div>
+    <div class="content" id="settings-content" style="display: none;">
+      <h2>Item Settings</h2>
+      <div class="sub-tabs">
+        <div class="sub-tab active" onclick="openSubTab('products')">Products</div>
+        <div class="sub-tab" onclick="openSubTab('categories')">Categories</div>
+        <div class="sub-tab" onclick="openSubTab('options')">Options</div>
+      </div>
+      <div class="sub-table-content" id="products-sub">
+        <h3>Add Product</h3>
+        <input type="text" id="product-name" class="form-control" placeholder="Name">
+        <input type="number" id="product-price" class="form-control" placeholder="Price" min="0">
+        <select id="product-category" class="form-control"></select>
+        <select id="product-options" class="form-control" multiple></select>
+        <button onclick="addProduct()">Add Product</button>
+        <h3>Existing Products</h3>
+        <div class="product-list" id="product-list"></div>
+      </div>
+      <div class="sub-table-content" id="categories-sub" style="display: none;">
+        <h3>Add Category</h3>
+        <input type="text" id="category-name" class="form-control" placeholder="Category Name">
+        <button onclick="addCategory()">Add Category</button>
+        <h3>Existing Categories</h3>
+        <div class="category-list" id="category-list"></div>
+      </div>
+      <div class="sub-table-content" id="options-sub" style="display: none;">
+        <h3>Add Option</h3>
+        <input type="text" id="option-name" class="form-control" placeholder="Option Name">
+        <button onclick="addOption()">Add Option</button>
+        <h3>Existing Options</h3>
+        <div class="option-list" id="option-list"></div>
+      </div>
+    </div>
+    <div class="content" id="mealset-content" style="display: none;">
+      <h2>套餐設定</h2>
+      <div class="sub-tabs">
+        <div class="sub-tab active" onclick="openSubTab('mealset-categories')">套餐分類</div>
+        <div class="sub-tab" onclick="openSubTab('mealset-items')">套餐項目</div>
+        <div class="sub-tab" onclick="openSubTab('mealset-steps')">套餐步驟</div>
+      </div>
+      <div class="sub-table-content" id="mealset-categories-sub">
+        <h3>Add Meal Set Category</h3>
+        <input type="text" id="mealset-category-name" class="form-control" placeholder="Category Name">
+        <button onclick="addMealSetCategory()">Add Category</button>
+        <h3>Existing Meal Set Categories</h3>
+        <div class="mealset-category-list" id="mealset-category-list"></div>
+      </div>
+      <div class="sub-table-content" id="mealset-items-sub" style="display: none;">
+        <h3>Add Meal Set Item</h3>
+        <input type="text" id="mealset-item-name" class="form-control" placeholder="Item Name">
+        <input type="number" id="mealset-item-price" class="form-control" placeholder="Price" min="0">
+        <select id="mealset-item-category" class="form-control"></select>
+        <select id="mealset-item-steps" class="form-control" multiple></select>
+        <button onclick="addMealSetItem()">Add Item</button>
+        <h3>Existing Meal Set Items</h3>
+        <div class="mealset-item-list" id="mealset-item-list"></div>
+      </div>
+      <div class="sub-table-content" id="mealset-steps-sub" style="display: none;">
+        <h3>Add Meal Set Step</h3>
+        <input type="text" id="mealset-step-name" class="form-control" placeholder="Step Name">
+        <input type="number" id="mealset-step-min" class="form-control" placeholder="Minimum Selections" min="0">
+        <input type="number" id="mealset-step-max" class="form-control" placeholder="Maximum Selections" min="1">
+        <label class="toggle-label">
+          Mandatory:
+          <input type="checkbox" id="mealset-step-mandatory" class="toggle-checkbox">
+          <span class="toggle-switch"></span>
+        </label>
+        <select id="mealset-step-products" class="form-control" multiple></select>
+        <h4>Extra Charges</h4>
+        <div id="extra-charges-container"></div>
+        <button onclick="addExtraChargeField()">Add Extra Charge</button>
+        <button onclick="addMealSetStep()">Add Step</button>
+        <h3>Existing Meal Set Steps</h3>
+        <div class="mealset-step-list" id="mealset-step-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="pos-dialog">
+    <h2 id="pos-table-title">Table X Order</h2>
+    <div class="tabs" id="category-tabs"></div>
+    <div class="pos-container">
+      <div class="products">
+        <h3>Products</h3>
+        <div id="pos-product-list"></div>
+      </div>
+      <div class="cart">
+        <h3>Cart</h3>
+        <div id="pos-cart-items"></div>
+        <h3>Total: $<span id="pos-total">0</span></h3>
+        <button onclick="submitOrder()">Place Order</button>
+        <button onclick="closePosDialog()">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="option-dialog" class="option-dialog">
+    <h3 id="option-product-name">Select Options</h3>
+    <label>Sugar:</label>
+    <select id="sugar-option"></select>
+    <button onclick="confirmProduct()">Confirm</button>
+    <button onclick="cancelProduct()">Cancel</button>
+  </dialog>
+
+  <dialog id="mealset-dialog" class="mealset-dialog">
+    <h3 id="mealset-item-name">Configure Meal Set</h3>
+    <div id="mealset-steps"></div>
+    <button onclick="confirmMealSet()">Confirm</button>
+    <button onclick="cancelMealSet()">Cancel</button>
+  </dialog>
+
+  <dialog id="checkout-dialog" class="checkout-dialog">
+    <h3 id="checkout-table-title">Checkout</h3>
+    <div id="checkout-items"></div>
+    <h3>Total: $<span id="checkout-total">0</span></h3>
+    <div>
+      <label>Adjust Price:</label>
+      <input type="text" id="price-modifier" readonly placeholder="Enter amount">
+      <div class="number-pad">
+        <button onclick="appendToPriceModifier('1')">1</button>
+        <button onclick="appendToPriceModifier('2')">2</button>
+        <button onclick="appendToPriceModifier('3')">3</button>
+        <button onclick="applyPriceModifier('+', '$')">+$</button>
+        <button onclick="appendToPriceModifier('4')">4</button>
+        <button onclick="appendToPriceModifier('5')">5</button>
+        <button onclick="appendToPriceModifier('6')">6</button>
+        <button onclick="applyPriceModifier('-', '$')">-$</button>
+        <button onclick="appendToPriceModifier('7')">7</button>
+        <button onclick="appendToPriceModifier('8')">8</button>
+        <button onclick="appendToPriceModifier('9')">9</button>
+        <button onclick="applyPriceModifier('+', '%')">+%</button>
+        <button onclick="appendToPriceModifier('0')">0</button>
+        <button onclick="clearPriceModifier()">Clear</button>
+        <button onclick="applyPriceModifier('-', '%')">-%</button>
+        <button onclick="confirmPriceModifier()">Confirm</button>
+      </div>
+    </div>
+    <button onclick="confirmCheckout()">Confirm Checkout</button>
+    <button onclick="document.getElementById('checkout-dialog').close()">Cancel</button>
+  </dialog>
+
+  <dialog id="confirm-dialog" class="confirm-dialog">
+    <h3 id="confirm-message">Table X Checked Out $XX</h3>
+    <button onclick="confirmCheckoutComplete()">Confirm</button>
+  </dialog>
+
+  <div id="print-area" style="display: none;"></div>
+
+  <script src="./src/script.js"></script>
+  </body>
+</html>
+
+  <script src="./src/script.js"></script>
+  </body>
+</html>

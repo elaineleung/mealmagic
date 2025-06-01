@@ -1,0 +1,2177 @@
+<script type="text/javascript">
+  var gk_isXlsx = false;
+  var gk_xlsxFileLookup = {};
+  var gk_fileData = {};
+  function filledCell(cell) {
+    return cell !== "" && cell != null;
+  }
+  function loadFileData(filename) {
+    if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+      try {
+        var workbook = XLSX.read(gk_fileData[filename], { type: "base64" });
+        var firstSheetName = workbook.SheetNames[0];
+        var worksheet = workbook.Sheets[firstSheetName];
+
+        // Convert sheet to JSON to filter blank rows
+        var jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          blankrows: false,
+          defval: "",
+        });
+        // Filter out blank rows (rows where all cells are empty, null, or undefined)
+        var filteredData = jsonData.filter((row) => row.some(filledCell));
+
+        // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+        var headerRowIndex = filteredData.findIndex(
+          (row, index) =>
+            row.filter(filledCell).length >=
+            filteredData[index + 1]?.filter(filledCell).length
+        );
+        // Fallback
+        if (headerRowIndex === -1 || headerRowIndex > 25) {
+          headerRowIndex = 0;
+        }
+
+        // Convert filtered JSON back to CSV
+        var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+        csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+        return csv;
+      } catch (e) {
+        console.error(e);
+        return "";
+      }
+    }
+    return gk_fileData[filename] || "";
+  }
+</script>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MealMagic POS</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: white;
+        text-align: center;
+      }
+      h1,
+      h2,
+      h3 {
+        color: #333;
+      }
+      .container {
+        display: flex;
+        gap: 20px;
+      }
+      .sidebar {
+        width: 200px;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        padding: 8px;
+      }
+      .tab {
+        padding: 10px;
+        background-color: #fff;
+        border: 1px solid #ddd;
+        cursor: pointer;
+        border-radius: 4px;
+        margin: 4px 0;
+        text-align: left;
+        font-size: 16px;
+        transition: background-color 0.2s;
+      }
+      .tab:hover {
+        background-color: #e6e6e6;
+      }
+      .tab.active {
+        background-color: #007bff;
+        color: white;
+        border-color: #007bff;
+      }
+      .content {
+        flex: 1;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        padding: 20px;
+        min-height: 400px;
+      }
+      .sub-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .sub-tab {
+        padding: 8px 16px;
+        background-color: #ddd;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .sub-tab.active {
+        background-color: #007bff;
+        color: white;
+      }
+      .table-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+        max-width: 800px;
+        margin: 20px auto;
+      }
+      .table {
+        padding: 15px;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-size: 16px;
+        text-align: center;
+        transition: transform 0.2s;
+      }
+      .table:hover {
+        transform: scale(1.05);
+      }
+      .table-empty {
+        background-color: #28a745;
+      }
+      .table-occupied {
+        background-color: #dc3545;
+      }
+      .table.disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+      .control-panel,
+      .table-details {
+        margin: 20px 0;
+        padding: 15px;
+        background-color: white;
+        border-radius: 8px;
+        text-align: left;
+      }
+      input,
+      select,
+      .form-control {
+        padding: 8px;
+        margin: 4px;
+        font-size: 16px;
+        width: calc(100% - 18px);
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      select[multiple] {
+        height: 100px;
+      }
+      button {
+        padding: 8px 16px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 4px;
+        font-size: 14px;
+        transition: background-color 0.2s;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      .delete-btn {
+        background-color: #dc3545;
+      }
+      .delete-btn:hover {
+        background-color: #c82333;
+      }
+      dialog {
+        border-radius: 8px;
+        padding: 20px;
+        max-width: 600px;
+        width: 90%;
+        background-color: white;
+        border: none;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      }
+      .pos-container {
+        display: flex;
+        gap: 20px;
+      }
+      .products,
+      .cart {
+        padding: 10px;
+        background-color: white;
+        border-radius: 4px;
+      }
+      .products {
+        flex: 2;
+      }
+      .cart {
+        flex: 1;
+      }
+      .product-item {
+        padding: 8px;
+        border-bottom: 1px solid #ddd;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .product-item:hover {
+        background-color: #f0f0f0;
+      }
+      .cart-item {
+        padding: 5px 0;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .tab.category {
+        padding: 8px;
+        background-color: #ddd;
+        border-radius: 4px;
+      }
+      .tab.category.active {
+        background-color: #007bff;
+        color: white;
+      }
+      .quantity-controls button {
+        padding: 4px 8px;
+        font-size: 14px;
+      }
+      .option-dialog,
+      .checkout-dialog,
+      .confirm-dialog,
+      .mealset-dialog {
+        max-width: 400px;
+        text-align: left;
+      }
+      .option-dialog select,
+      .checkout-dialog input,
+      .mealset-dialog select {
+        width: 100%;
+        padding: 8px;
+        margin: 8px 0;
+        font-size: 16px;
+      }
+      .number-pad {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        margin: 10px 0;
+      }
+      .number-pad button {
+        padding: 10px;
+        font-size: 16px;
+      }
+      .order-history,
+      .payment-history,
+      .category-list,
+      .option-list,
+      .product-list,
+      .mealset-category-list,
+      .mealset-item-list,
+      .mealset-step-list {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin: 10px 0;
+        background-color: white;
+        border-radius: 8px;
+      }
+      .category-list div,
+      .option-list div,
+      .product-list div,
+      .mealset-category-list div,
+      .mealset-item-list div,
+      .mealset-step-list div {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        align-items: center;
+      }
+      .error-message {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #dc3545;
+        color: white;
+        padding: 10px;
+        border-radius: 4px;
+        z-index: 1000;
+      }
+      .toggle-label {
+        display: inline-block;
+        margin: 8px 0;
+        font-size: 16px;
+      }
+      .toggle-checkbox {
+        display: none;
+      }
+      .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 40px;
+        height: 20px;
+        background-color: #ccc;
+        border-radius: 20px;
+        vertical-align: middle;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+      .toggle-switch::before {
+        content: "";
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        background-color: white;
+        border-radius: 50%;
+        top: 2px;
+        left: 2px;
+        transition: transform 0.2s;
+      }
+      .toggle-checkbox:checked + .toggle-switch {
+        background-color: #28a745;
+      }
+      .toggle-checkbox:checked + .toggle-switch::before {
+        transform: translateX(20px);
+      }
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #print-area,
+        #print-area * {
+          visibility: visible;
+        }
+        #print-area {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>MealMagic</h1>
+    <div class="container">
+      <div class="sidebar">
+        <div class="tab active" onclick="openTab('home')">Home</div>
+        <div class="tab" onclick="openTab('records')">Payment Records</div>
+        <div class="tab" onclick="openTab('settings')">Item Settings</div>
+        <div class="tab" onclick="openTab('mealset')">套餐設定</div>
+      </div>
+      <div class="content" id="home-content">
+        <div class="table-grid" id="table-grid"></div>
+        <div class="control-panel" id="control-panel" style="display: none">
+          <h3 id="table-title">Selected Table</h3>
+          <div id="open-table-controls">
+            <input
+              type="number"
+              id="num-guests"
+              min="1"
+              max="10"
+              placeholder="1-10"
+            />
+            <button onclick="openTable()">Open Table</button>
+          </div>
+        </div>
+        <div class="table-details" id="table-details" style="display: none">
+          <h3 id="table-details-title">Table Details</h3>
+          <div class="order-history" id="order-history"></div>
+          <h3>Total: $<span id="table-total">0</span></h3>
+          <button onclick="clearTable()">CLEAR TABLE</button>
+          <button onclick="printTable()">PRINT</button>
+          <button onclick="openCheckout()">CHECKOUT</button>
+        </div>
+      </div>
+      <div class="content" id="records-content" style="display: none">
+        <h2>Payment Records</h2>
+        <div class="payment-history" id="payment-history"></div>
+      </div>
+      <div class="content" id="settings-content" style="display: none">
+        <h2>Item Settings</h2>
+        <div class="sub-tabs">
+          <div class="sub-tab active" onclick="openSubTab('products')">
+            Products
+          </div>
+          <div class="sub-tab" onclick="openSubTab('categories')">
+            Categories
+          </div>
+          <div class="sub-tab" onclick="openSubTab('options')">Options</div>
+        </div>
+        <div class="sub-table-content" id="products-sub">
+          <h3>Add Product</h3>
+          <input
+            type="text"
+            id="product-name"
+            class="form-control"
+            placeholder="Name"
+          />
+          <input
+            type="number"
+            id="product-price"
+            class="form-control"
+            placeholder="Price"
+            min="0"
+          />
+          <select id="product-category" class="form-control"></select>
+          <select id="product-options" class="form-control" multiple></select>
+          <button onclick="addProduct()">Add Product</button>
+          <h3>Existing Products</h3>
+          <div class="product-list" id="product-list"></div>
+        </div>
+        <div
+          class="sub-table-content"
+          id="categories-sub"
+          style="display: none"
+        >
+          <h3>Add Category</h3>
+          <input
+            type="text"
+            id="category-name"
+            class="form-control"
+            placeholder="Category Name"
+          />
+          <button onclick="addCategory()">Add Category</button>
+          <h3>Existing Categories</h3>
+          <div class="category-list" id="category-list"></div>
+        </div>
+        <div class="sub-table-content" id="options-sub" style="display: none">
+          <h3>Add Option</h3>
+          <input
+            type="text"
+            id="option-name"
+            class="form-control"
+            placeholder="Option Name"
+          />
+          <button onclick="addOption()">Add Option</button>
+          <h3>Existing Options</h3>
+          <div class="option-list" id="option-list"></div>
+        </div>
+      </div>
+      <div class="content" id="mealset-content" style="display: none">
+        <h2>套餐設定</h2>
+        <div class="sub-tabs">
+          <div
+            class="sub-tab active"
+            onclick="openSubTab('mealset-categories')"
+          >
+            套餐分類
+          </div>
+          <div class="sub-tab" onclick="openSubTab('mealset-items')">
+            套餐項目
+          </div>
+          <div class="sub-tab" onclick="openSubTab('mealset-steps')">
+            套餐步驟
+          </div>
+        </div>
+        <div class="sub-table-content" id="mealset-categories-sub">
+          <h3>Add Meal Set Category</h3>
+          <input
+            type="text"
+            id="mealset-category-name"
+            class="form-control"
+            placeholder="Category Name"
+          />
+          <button onclick="addMealSetCategory()">Add Category</button>
+          <h3>Existing Meal Set Categories</h3>
+          <div class="mealset-category-list" id="mealset-category-list"></div>
+        </div>
+        <div
+          class="sub-table-content"
+          id="mealset-items-sub"
+          style="display: none"
+        >
+          <h3>Add Meal Set Item</h3>
+          <input
+            type="text"
+            id="mealset-item-name"
+            class="form-control"
+            placeholder="Item Name"
+          />
+          <select id="mealset-item-category" class="form-control"></select>
+          <select
+            id="mealset-item-steps"
+            class="form-control"
+            multiple
+          ></select>
+          <button onclick="addMealSetItem()">Add Item</button>
+          <h3>Existing Meal Set Items</h3>
+          <div class="mealset-item-list" id="mealset-item-list"></div>
+        </div>
+        <div
+          class="sub-table-content"
+          id="mealset-steps-sub"
+          style="display: none"
+        >
+          <h3>Add Meal Set Step</h3>
+          <input
+            type="text"
+            id="mealset-step-name"
+            class="form-control"
+            placeholder="Step Name"
+          />
+          <input
+            type="number"
+            id="mealset-step-min"
+            class="form-control"
+            placeholder="Minimum Selections"
+            min="0"
+          />
+          <input
+            type="number"
+            id="mealset-step-max"
+            class="form-control"
+            placeholder="Maximum Selections"
+            min="1"
+          />
+          <label class="toggle-label">
+            Mandatory:
+            <input
+              type="checkbox"
+              id="mealset-step-mandatory"
+              class="toggle-checkbox"
+            />
+            <span class="toggle-switch"></span>
+          </label>
+          <select
+            id="mealset-step-products"
+            class="form-control"
+            multiple
+          ></select>
+          <button onclick="addMealSetStep()">Add Step</button>
+          <h3>Existing Meal Set Steps</h3>
+          <div class="mealset-step-list" id="mealset-step-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <dialog id="pos-dialog">
+      <h2 id="pos-table-title">Table X Order</h2>
+      <div class="tabs" id="category-tabs"></div>
+      <div class="pos-container">
+        <div class="products">
+          <h3>Products</h3>
+          <div id="pos-product-list"></div>
+        </div>
+        <div class="cart">
+          <h3>Cart</h3>
+          <div id="pos-cart-items"></div>
+          <h3>Total: $<span id="pos-total">0</span></h3>
+          <button onclick="submitOrder()">Place Order</button>
+          <button onclick="closePosDialog()">Close</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="option-dialog" class="option-dialog">
+      <h3 id="option-product-name">Select Options</h3>
+      <label>Sugar:</label>
+      <select id="sugar-option"></select>
+      <button onclick="confirmProduct()">Confirm</button>
+      <button onclick="cancelProduct()">Cancel</button>
+    </dialog>
+
+    <dialog id="mealset-dialog" class="mealset-dialog">
+      <h3 id="mealset-item-name">Configure Meal Set</h3>
+      <div id="mealset-steps"></div>
+      <button onclick="confirmMealSet()">Confirm</button>
+      <button onclick="cancelMealSet()">Cancel</button>
+    </dialog>
+
+    <dialog id="checkout-dialog" class="checkout-dialog">
+      <h3 id="checkout-table-title">Checkout</h3>
+      <div id="checkout-items"></div>
+      <h3>Total: $<span id="checkout-total">0</span></h3>
+      <div>
+        <label>Adjust Price:</label>
+        <input
+          type="text"
+          id="price-modifier"
+          readonly
+          placeholder="Enter amount"
+        />
+        <div class="number-pad">
+          <button onclick="appendToPriceModifier('1')">1</button>
+          <button onclick="appendToPriceModifier('2')">2</button>
+          <button onclick="appendToPriceModifier('3')">3</button>
+          <button onclick="applyPriceModifier('+', '$')">+$</button>
+          <button onclick="appendToPriceModifier('4')">4</button>
+          <button onclick="appendToPriceModifier('5')">5</button>
+          <button onclick="appendToPriceModifier('6')">6</button>
+          <button onclick="applyPriceModifier('-', '$')">-$</button>
+          <button onclick="appendToPriceModifier('7')">7</button>
+          <button onclick="appendToPriceModifier('8')">8</button>
+          <button onclick="appendToPriceModifier('9')">9</button>
+          <button onclick="applyPriceModifier('+', '%')">+%</button>
+          <button onclick="appendToPriceModifier('0')">0</button>
+          <button onclick="clearPriceModifier()">Clear</button>
+          <button onclick="applyPriceModifier('-', '%')">-%</button>
+          <button onclick="confirmPriceModifier()">Confirm</button>
+        </div>
+      </div>
+      <button onclick="confirmCheckout()">Confirm Checkout</button>
+      <button onclick="document.getElementById('checkout-dialog').close()">
+        Cancel
+      </button>
+    </dialog>
+
+    <dialog id="confirm-dialog" class="confirm-dialog">
+      <h3 id="confirm-message">Table X Checked Out $XX</h3>
+      <button onclick="confirmCheckoutComplete()">Confirm</button>
+    </dialog>
+
+    <div id="print-area" style="display: none"></div>
+
+    <script>
+      // Initialize data
+      let tables = Array(10)
+        .fill()
+        .map((_, i) => ({
+          id: i + 1,
+          occupied: false,
+          guests: 0,
+          cart: [],
+          orders: [],
+        }));
+      let paymentHistory = [];
+      let categories = [
+        { id: 1, name: "Drinks" },
+        { id: 2, name: "Coffee" },
+        { id: 3, name: "Milk Tea" },
+      ];
+      let options = [
+        { id: 1, name: "With Sugar" },
+        { id: 2, name: "No Sugar" },
+        { id: 3, name: "Half Sugar" },
+      ];
+      let products = [
+        {
+          id: 1,
+          name: "Mineral Water",
+          price: 20,
+          categoryId: 1,
+          optionIds: [2],
+        },
+        { id: 2, name: "Cola", price: 30, categoryId: 1, optionIds: [1, 2] },
+        {
+          id: 3,
+          name: "Americano",
+          price: 50,
+          categoryId: 2,
+          optionIds: [1, 2],
+        },
+        { id: 4, name: "Latte", price: 60, categoryId: 2, optionIds: [1, 2] },
+        {
+          id: 5,
+          name: "Pearl Milk Tea",
+          price: 55,
+          categoryId: 3,
+          optionIds: [1, 2],
+        },
+        {
+          id: 6,
+          name: "Green Milk Tea",
+          price: 50,
+          categoryId: 3,
+          optionIds: [1, 2],
+        },
+      ];
+      let mealSetCategories = [];
+      let mealSetItems = [];
+      let mealSetSteps = [];
+      let nextCategoryId = 4;
+      let nextOptionId = 4;
+      let nextProductId = 7;
+      let nextMealSetCategoryId = 1;
+      let nextMealSetItemId = 1;
+      let nextMealSetStepId = 1;
+      let selectedTable = null;
+      let currentCategoryId = categories[0]?.id || 0;
+      let selectedProduct = null;
+      let selectedMealSet = null;
+      let priceModifier = "";
+      let currentTab = "home";
+      let mealSetSelections = {};
+
+      // Show error message in DOM
+      function showError(message) {
+        const errorDiv = document.createElement("div");
+        errorDiv.className = "error-message";
+        errorDiv.innerText = message;
+        document.body.appendChild(errorDiv);
+        setTimeout(() => errorDiv.remove(), 5000);
+      }
+
+      // Load data from localStorage
+      function loadData() {
+        try {
+          const savedTables = localStorage.getItem("tables");
+          if (savedTables) {
+            const parsedTables = JSON.parse(savedTables);
+            if (Array.isArray(parsedTables)) {
+              tables = parsedTables.map((t) => ({
+                id: t.id || 0,
+                occupied: typeof t.occupied === "boolean" ? t.occupied : false,
+                guests: Number.isInteger(t.guests) ? t.guests : 0,
+                cart: Array.isArray(t.cart) ? t.cart : [],
+                orders: Array.isArray(t.orders) ? t.orders : [],
+              }));
+              if (
+                tables.length !== 10 ||
+                !tables.every((t, i) => t.id === i + 1)
+              ) {
+                console.warn("Table data incomplete, resetting.");
+                resetTables();
+              }
+            } else {
+              resetTables();
+            }
+          } else {
+            resetTables();
+          }
+          const savedPayments = localStorage.getItem("paymentHistory");
+          if (savedPayments) {
+            const parsedPayments = JSON.parse(savedPayments);
+            if (Array.isArray(parsedPayments)) paymentHistory = parsedPayments;
+          }
+          const savedCategories = localStorage.getItem("categories");
+          if (savedCategories) {
+            const parsedCategories = JSON.parse(savedCategories);
+            if (Array.isArray(parsedCategories)) {
+              categories = parsedCategories;
+              nextCategoryId =
+                Math.max(...categories.map((c) => c.id || 0), 3) + 1;
+            }
+          }
+          const savedOptions = localStorage.getItem("options");
+          if (savedOptions) {
+            const parsedOptions = JSON.parse(savedOptions);
+            if (Array.isArray(parsedOptions)) {
+              options = parsedOptions;
+              nextOptionId = Math.max(...options.map((o) => o.id || 0), 3) + 1;
+            }
+          }
+          const savedProducts = localStorage.getItem("products");
+          if (savedProducts) {
+            const parsedProducts = JSON.parse(savedProducts);
+            if (Array.isArray(parsedProducts)) {
+              products = parsedProducts;
+              nextProductId =
+                Math.max(...products.map((p) => p.id || 0), 6) + 1;
+            }
+          }
+          const savedMealSetCategories =
+            localStorage.getItem("mealSetCategories");
+          if (savedMealSetCategories) {
+            const parsed = JSON.parse(savedMealSetCategories);
+            if (Array.isArray(parsed)) {
+              mealSetCategories = parsed;
+              nextMealSetCategoryId =
+                Math.max(...mealSetCategories.map((c) => c.id || 0), 0) + 1;
+            }
+          }
+          const savedMealSetItems = localStorage.getItem("mealSetItems");
+          if (savedMealSetItems) {
+            const parsed = JSON.parse(savedMealSetItems);
+            if (Array.isArray(parsed)) {
+              mealSetItems = parsed;
+              nextMealSetItemId =
+                Math.max(...mealSetItems.map((i) => i.id || 0), 0) + 1;
+            }
+          }
+          const savedMealSetSteps = localStorage.getItem("mealSetSteps");
+          if (savedMealSetSteps) {
+            const parsed = JSON.parse(savedMealSetSteps);
+            if (Array.isArray(parsed)) {
+              mealSetSteps = parsed;
+              nextMealSetStepId =
+                Math.max(...mealSetSteps.map((s) => s.id || 0), 0) + 1;
+            }
+          }
+        } catch (error) {
+          console.error("Error loading data:", error);
+          resetTables();
+        }
+      }
+
+      // Reset table data
+      function resetTables() {
+        tables = Array(10)
+          .fill()
+          .map((_, i) => ({
+            id: i + 1,
+            occupied: false,
+            guests: 0,
+            cart: [],
+            orders: [],
+          }));
+        saveData();
+      }
+
+      // Save data to localStorage
+      function saveData() {
+        try {
+          localStorage.setItem("tables", JSON.stringify(tables));
+          localStorage.setItem(
+            "paymentHistory",
+            JSON.stringify(paymentHistory)
+          );
+          localStorage.setItem("categories", JSON.stringify(categories));
+          localStorage.setItem("options", JSON.stringify(options));
+          localStorage.setItem("products", JSON.stringify(products));
+          localStorage.setItem(
+            "mealSetCategories",
+            JSON.stringify(mealSetCategories)
+          );
+          localStorage.setItem("mealSetItems", JSON.stringify(mealSetItems));
+          localStorage.setItem("mealSetSteps", JSON.stringify(mealSetSteps));
+        } catch (error) {
+          console.error("Error saving data:", error);
+          showError("Unable to save data, please check browser settings!");
+        }
+      }
+
+      // Switch main tab
+      function openTab(tab) {
+        currentTab = tab;
+        const tabs = document.querySelectorAll(".sidebar .tab");
+        const contents = document.querySelectorAll(".content");
+        tabs.forEach((t) => t.classList.remove("active"));
+        contents.forEach((c) => (c.style.display = "none"));
+        const activeTab = document.querySelector(
+          `.sidebar .tab[onclick="openTab('${tab}')"]`
+        );
+        if (activeTab) activeTab.classList.add("active");
+        const content = document.getElementById(`${tab}-content`);
+        if (content) content.style.display = "block";
+        if (tab === "records") updatePaymentHistory();
+        if (tab === "settings") openSubTab("products");
+        if (tab === "mealset") openSubTab("mealset-categories");
+        if (tab === "home") displayTables();
+      }
+
+      // Switch sub-tab
+      function openSubTab(subTab) {
+        const subTabs = document.querySelectorAll(".sub-tabs .sub-tab");
+        const subContents = document.querySelectorAll(".sub-table-content");
+        subTabs.forEach((t) => t.classList.remove("active"));
+        subContents.forEach((c) => (c.style.display = "none"));
+        const activeSubTab = document.querySelector(
+          `.sub-tabs .sub-tab[onclick="openSubTab('${subTab}')"]`
+        );
+        if (activeSubTab) activeSubTab.classList.add("active");
+        const subContent = document.getElementById(`${subTab}-sub`);
+        if (subContent) subContent.style.display = "block";
+        if (subTab === "products") {
+          updateCategorySelect();
+          updateOptionSelect();
+          updateProductList();
+        }
+        if (subTab === "categories") updateCategoryList();
+        if (subTab === "options") updateOptionList();
+        if (subTab === "mealset-categories") updateMealSetCategoryList();
+        if (subTab === "mealset-items") {
+          updateMealSetItemCategorySelect();
+          updateMealSetItemStepSelect();
+          updateMealSetItemList();
+        }
+        if (subTab === "mealset-steps") {
+          updateMealSetStepProductSelect();
+          updateMealSetStepList();
+        }
+      }
+
+      // Display table grid
+      function displayTables() {
+        const tableGrid = document.getElementById("table-grid");
+        if (!tableGrid) {
+          console.error("Table grid not found!");
+          return;
+        }
+        tableGrid.innerHTML = "";
+        tables.forEach((table) => {
+          const tableDiv = document.createElement("div");
+          tableDiv.className = `table ${
+            table.occupied ? "table-occupied" : "table-empty"
+          } ${currentTab !== "home" ? "disabled" : ""}`;
+          tableDiv.innerText = table.occupied
+            ? `Table ${table.id}: ${table.guests} guests`
+            : `Table ${table.id}: Empty`;
+          if (currentTab === "home") {
+            tableDiv.onclick = () => selectTable(table.id);
+          }
+          tableGrid.appendChild(tableDiv);
+        });
+      }
+
+      // Select table
+      function selectTable(tableId) {
+        if (currentTab !== "home") {
+          console.warn(
+            "Table selection attempted on non-home tab:",
+            currentTab
+          );
+          openTab("home");
+          return;
+        }
+
+        selectedTable = tables.find((t) => t.id === tableId);
+        if (!selectedTable) {
+          console.error(`Table ID ${tableId} not found.`);
+          showError("Table selection error!");
+          return;
+        }
+        console.log(`Selected table ${tableId}`);
+
+        const controlPanel = document.getElementById("control-panel");
+        const tableDetails = document.getElementById("table-details");
+        const selectedTableText = document.getElementById("table-title");
+        const openTableControls = document.getElementById(
+          "open-table-controls"
+        );
+        const tableDetailsTitle = document.getElementById(
+          "table-details-title"
+        );
+
+        if (
+          !controlPanel ||
+          !tableDetails ||
+          !selectedTableText ||
+          !openTableControls ||
+          !tableDetailsTitle
+        ) {
+          console.error("Control panel or table details not found:", {
+            controlPanel: !!controlPanel,
+            tableDetails: !!tableDetails,
+            selectedTableText: !!selectedTableText,
+            openTableControls: !!openTableControls,
+            tableDetailsTitle: !!tableDetailsTitle,
+            homeContentVisible:
+              document.getElementById("home-content")?.style.display ===
+              "block",
+          });
+          showError("Interface load failed, please refresh the page!");
+          return;
+        }
+
+        selectedTableText.innerText = `Table ${tableId}`;
+        tableDetailsTitle.innerText = `Table ${tableId} Details`;
+        if (selectedTable.occupied) {
+          controlPanel.style.display = "none";
+          tableDetails.style.display = "block";
+          updateTableDetails();
+          openPosDialog(tableId);
+        } else {
+          controlPanel.style.display = "block";
+          tableDetails.style.display = "none";
+          openTableControls.style.display = "block";
+          document.getElementById("num-guests").value = "";
+        }
+      }
+
+      // Open table
+      function openTable() {
+        if (!selectedTable) {
+          console.error("No table selected for opening.");
+          showError("Please select a table!");
+          return;
+        }
+        const numGuests = parseInt(document.getElementById("num-guests").value);
+        if (!numGuests || numGuests < 1 || numGuests > 10) {
+          showError("Please enter valid number of guests (1-10)!");
+          return;
+        }
+        selectedTable.occupied = true;
+        selectedTable.guests = numGuests;
+        selectedTable.cart = [];
+        selectedTable.orders = [];
+        saveData();
+        displayTables();
+        document.getElementById("control-panel").style.display = "none";
+        selectedTable = null;
+      }
+
+      // Clear table
+      function clearTable() {
+        if (!selectedTable) {
+          console.error("No table selected for clearing.");
+          showError("Please select a table!");
+          return;
+        }
+        console.log(`Clearing table ${selectedTable.id}`);
+        selectedTable.occupied = false;
+        selectedTable.guests = 0;
+        selectedTable.cart = [];
+        selectedTable.orders = [];
+        saveData();
+        displayTables();
+        document.getElementById("table-details").style.display = "none";
+        selectedTable = null;
+      }
+
+      // Open POS dialog
+      function openPosDialog(tableId) {
+        try {
+          const dialog = document.getElementById("pos-dialog");
+          if (!dialog) throw new Error("POS dialog not found.");
+          selectedTable = tables.find((t) => t.id === tableId);
+          if (!selectedTable) throw new Error(`Table ID ${tableId} not found.`);
+          console.log(`Opening POS dialog for table ${tableId}`);
+          document.getElementById(
+            "pos-table-title"
+          ).innerText = `Table ${tableId} Order`;
+          currentCategoryId = categories[0]?.id || 0;
+          updateCategoryTabs();
+          displayPosProducts();
+          updatePosCart();
+          dialog.showModal();
+        } catch (error) {
+          console.error("Error opening POS dialog:", error);
+          showError("Unable to open POS window, please refresh!");
+        }
+      }
+
+      // Close POS dialog
+      function closePosDialog() {
+        const dialog = document.getElementById("pos-dialog");
+        if (dialog) dialog.close();
+        console.log(
+          "POS dialog closed, retaining selectedTable:",
+          selectedTable ? selectedTable.id : "none"
+        );
+      }
+
+      // Update category tabs
+      function updateCategoryTabs() {
+        const categoryTabs = document.getElementById("category-tabs");
+        if (!categoryTabs) {
+          console.error("Category tabs not found.");
+          return;
+        }
+        categoryTabs.innerHTML = "";
+        categories.forEach((category) => {
+          const tab = document.createElement("div");
+          tab.className = `tab category ${
+            category.id === currentCategoryId ? "active" : ""
+          }`;
+          tab.innerText = category.name;
+          tab.onclick = () => switchCategory(category.id);
+          categoryTabs.appendChild(tab);
+        });
+        // Add Meal Sets tab
+        const mealSetTab = document.createElement("div");
+        mealSetTab.className = `tab category ${
+          currentCategoryId === "mealsets" ? "active" : ""
+        }`;
+        mealSetTab.innerText = "Meal Sets";
+        mealSetTab.onclick = () => switchCategory("mealsets");
+        categoryTabs.appendChild(mealSetTab);
+      }
+
+      // Switch product category
+      function switchCategory(categoryId) {
+        currentCategoryId = categoryId;
+        updateCategoryTabs();
+        displayPosProducts();
+      }
+
+      // Display POS products
+      function displayPosProducts() {
+        const productList = document.getElementById("pos-product-list");
+        if (!productList) {
+          console.error("Product list not found.");
+          return;
+        }
+        productList.innerHTML = "";
+        if (currentCategoryId === "mealsets") {
+          mealSetItems.forEach((item) => {
+            const category = mealSetCategories.find(
+              (c) => c.id === item.categoryId
+            );
+            const price = mealSetSteps
+              .filter((s) => item.stepIds.includes(s.id))
+              .flatMap((s) =>
+                s.productIds.map(
+                  (pid) => products.find((p) => p.id === pid)?.price || 0
+                )
+              )
+              .reduce((sum, price) => sum + price, 0);
+            const itemDiv = document.createElement("div");
+            itemDiv.className = "product-item";
+            itemDiv.innerHTML = `${item.name} (${
+              category ? category.name : "N/A"
+            }) - $${price}`;
+            itemDiv.onclick = () => openMealSetDialog(item);
+            productList.appendChild(itemDiv);
+          });
+        } else {
+          products
+            .filter((p) => p.categoryId === currentCategoryId)
+            .forEach((product) => {
+              const productDiv = document.createElement("div");
+              productDiv.className = "product-item";
+              productDiv.innerHTML = `${product.name} - $${product.price}`;
+              productDiv.onclick = () => openOptionDialog(product);
+              productList.appendChild(productDiv);
+            });
+        }
+      }
+
+      // Open meal set dialog
+      function openMealSetDialog(mealSetItem) {
+        selectedMealSet = mealSetItem;
+        mealSetSelections = {};
+        const dialog = document.getElementById("mealset-dialog");
+        if (!dialog) {
+          console.error("Meal set dialog not found.");
+          return;
+        }
+        document.getElementById(
+          "mealset-item-name"
+        ).innerText = `Configure ${mealSetItem.name}`;
+        const stepsContainer = document.getElementById("mealset-steps");
+        stepsContainer.innerHTML = "";
+        mealSetItem.stepIds.forEach((stepId) => {
+          const step = mealSetSteps.find((s) => s.id === stepId);
+          if (!step) return;
+          const stepDiv = document.createElement("div");
+          stepDiv.innerHTML = `
+          <h4>${step.name} (${
+            step.isMandatory ? "Mandatory" : "Optional"
+          }, Select ${step.minSelections}-${step.maxSelections})</h4>
+          <select id="mealset-step-${step.id}" multiple>
+            ${step.productIds
+              .map((pid) => {
+                const product = products.find((p) => p.id === pid);
+                return product
+                  ? `<option value="${product.id}">${product.name} - $${product.price}</option>`
+                  : "";
+              })
+              .join("")}
+          </select>
+        `;
+          stepsContainer.appendChild(stepDiv);
+        });
+        dialog.showModal();
+      }
+
+      // Confirm meal set selections
+      function confirmMealSet() {
+        if (!selectedTable || !selectedMealSet) {
+          console.error("No table or meal set selected.");
+          return;
+        }
+        let totalPrice = 0;
+        const mealSetCartItem = {
+          id: `mealset-${selectedMealSet.id}`,
+          name: selectedMealSet.name,
+          items: [],
+          price: 0,
+          quantity: 1,
+        };
+        let valid = true;
+        selectedMealSet.stepIds.forEach((stepId) => {
+          const step = mealSetSteps.find((s) => s.id === stepId);
+          if (!step) return;
+          const select = document.getElementById(`mealset-step-${step.id}`);
+          const selectedOptions = Array.from(select.selectedOptions).map((o) =>
+            parseInt(o.value)
+          );
+          if (step.isMandatory && selectedOptions.length < step.minSelections) {
+            showError(
+              `Please select at least ${step.minSelections} item(s) for ${step.name}!`
+            );
+            valid = false;
+            return;
+          }
+          if (selectedOptions.length > step.maxSelections) {
+            showError(
+              `You can select up to ${step.maxSelections} item(s) for ${step.name}!`
+            );
+            valid = false;
+            return;
+          }
+          selectedOptions.forEach((productId) => {
+            const product = products.find((p) => p.id === productId);
+            if (product) {
+              mealSetCartItem.items.push({
+                stepId: step.id,
+                stepName: step.name,
+                productId: product.id,
+                productName: product.name,
+                price: product.price,
+                optionId: product.optionIds[0] || null,
+              });
+              totalPrice += product.price;
+            }
+          });
+        });
+        if (!valid) return;
+        mealSetCartItem.price = totalPrice;
+        const existingItem = selectedTable.cart.find(
+          (item) =>
+            item.id === mealSetCartItem.id &&
+            JSON.stringify(item.items) === JSON.stringify(mealSetCartItem.items)
+        );
+        if (existingItem) {
+          existingItem.quantity += 1;
+        } else {
+          selectedTable.cart.push(mealSetCartItem);
+        }
+        saveData();
+        updatePosCart();
+        document.getElementById("mealset-dialog").close();
+        selectedMealSet = null;
+        mealSetSelections = {};
+      }
+
+      // Cancel meal set selection
+      function cancelMealSet() {
+        document.getElementById("mealset-dialog").close();
+        selectedMealSet = null;
+        mealSetSelections = {};
+      }
+
+      // Open option dialog
+      function openOptionDialog(product) {
+        selectedProduct = product;
+        const dialog = document.getElementById("option-dialog");
+        if (!dialog) {
+          console.error("Option dialog not found.");
+          return;
+        }
+        document.getElementById(
+          "option-product-name"
+        ).innerText = `Select ${product.name} Options`;
+        const sugarSelect = document.getElementById("sugar-option");
+        sugarSelect.innerHTML = product.optionIds
+          .map((id) => {
+            const option = options.find((o) => o.id === id);
+            return option
+              ? `<option value="${option.id}">${option.name}</option>`
+              : "";
+          })
+          .join("");
+        dialog.showModal();
+      }
+
+      // Confirm product option
+      function confirmProduct() {
+        if (!selectedTable || !selectedProduct) {
+          console.error("No table or product selected.");
+          return;
+        }
+        const optionId = parseInt(
+          document.getElementById("sugar-option").value
+        );
+        const option = options.find((o) => o.id === optionId);
+        if (!option) {
+          showError("Invalid option selected!");
+          return;
+        }
+        const existingItem = selectedTable.cart.find(
+          (item) => item.id === selectedProduct.id && item.optionId === optionId
+        );
+        if (existingItem) {
+          existingItem.quantity = (existingItem.quantity || 1) + 1;
+        } else {
+          selectedTable.cart.push({
+            ...selectedProduct,
+            optionId: optionId,
+            quantity: 1,
+          });
+        }
+        saveData();
+        updatePosCart();
+        document.getElementById("option-dialog").close();
+        selectedProduct = null;
+      }
+
+      // Cancel product selection
+      function cancelProduct() {
+        document.getElementById("option-dialog").close();
+        selectedProduct = null;
+      }
+
+      // Update POS cart display
+      function updatePosCart() {
+        const cartItems = document.getElementById("pos-cart-items");
+        if (!cartItems) {
+          console.error("Cart items not found.");
+          return;
+        }
+        cartItems.innerHTML = "";
+        if (selectedTable) {
+          selectedTable.cart.forEach((item, index) => {
+            const cartItem = document.createElement("div");
+            cartItem.className = "cart-item";
+            if (item.id.startsWith("mealset-")) {
+              const itemsList = item.items
+                .map((i) => `${i.productName} (${i.stepName})`)
+                .join(", ");
+              cartItem.innerHTML = `
+              ${item.name} x${item.quantity} - $${item.price * item.quantity}
+              <div>${itemsList}</div>
+              <div class="quantity-controls">
+                <button onclick="updateCartQuantity(${index}, 1)">+</button>
+                <button onclick="updateCartQuantity(${index}, -1)">-</button>
+                <button onclick="removeCartItem(${index})">Delete</button>
+              </div>
+            `;
+            } else {
+              const option = options.find((o) => o.id === item.optionId);
+              cartItem.innerHTML = `
+              ${item.name} (${option ? option.name : "N/A"}) x${
+                item.quantity
+              } - $${item.price * item.quantity}
+              <div class="quantity-controls">
+                <button onclick="updateCartQuantity(${index}, 1)">+</button>
+                <button onclick="updateCartQuantity(${index}, -1)">-</button>
+                <button onclick="removeCartItem(${index})">Delete</button>
+              </div>
+            `;
+            }
+            cartItems.appendChild(cartItem);
+          });
+          const total = selectedTable.cart.reduce(
+            (sum, item) => sum + item.price * (item.quantity || 1),
+            0
+          );
+          document.getElementById("pos-total").innerText = total;
+        }
+      }
+
+      // Update cart quantity
+      function updateCartQuantity(index, change) {
+        if (!selectedTable) {
+          console.error("No table selected for updating cart.");
+          return;
+        }
+        const item = selectedTable.cart[index];
+        if (item) {
+          item.quantity = Math.max(1, (item.quantity || 1) + change);
+          saveData();
+          updatePosCart();
+        }
+      }
+
+      // Remove cart item
+      function removeCartItem(index) {
+        if (!selectedTable) {
+          console.error("No table selected for removing cart item.");
+          return;
+        }
+        selectedTable.cart.splice(index, 1);
+        saveData();
+        updatePosCart();
+      }
+
+      // Submit order
+      function submitOrder() {
+        if (!selectedTable) {
+          console.error("No table selected for submitting order.");
+          showError("Please select a table!");
+          return;
+        }
+        if (selectedTable.cart.length === 0) {
+          showError("Cart is empty!");
+          return;
+        }
+        const total = selectedTable.cart.reduce(
+          (sum, item) => sum + item.price * (item.quantity || 1),
+          0
+        );
+        selectedTable.orders.push({
+          items: selectedTable.cart.map((item) => ({
+            ...item,
+            optionName: item.id.startsWith("mealset-")
+              ? null
+              : options.find((o) => o.id === item.optionId)?.name || "N/A",
+            items: item.id.startsWith("mealset-") ? item.items : null,
+          })),
+          total: total,
+          timestamp: new Date().toLocaleString("en-US"),
+        });
+        selectedTable.cart = [];
+        saveData();
+        updatePosCart();
+        document.getElementById("pos-dialog").close();
+        updateTableDetails();
+        console.log(
+          "Order submitted, retaining selectedTable:",
+          selectedTable.id
+        );
+      }
+
+      // Update table details
+      function updateTableDetails() {
+        if (!selectedTable) {
+          console.error("No table selected for updating details.");
+          showError("Unable to load table details, please reselect table!");
+          return;
+        }
+        const orderHistory = document.getElementById("order-history");
+        const tableTotal = document.getElementById("table-total");
+        if (!orderHistory || !tableTotal) {
+          console.error("Order history or total not found.");
+          return;
+        }
+        orderHistory.innerHTML = "";
+        let total = 0;
+        if (selectedTable.orders.length > 0) {
+          selectedTable.orders.forEach((order, index) => {
+            const orderDiv = document.createElement("div");
+            orderDiv.innerHTML = `<strong>Order ${index + 1} (${
+              order.timestamp
+            }):</strong>`;
+            order.items.forEach((item) => {
+              const itemDiv = document.createElement("div");
+              if (item.id.startsWith("mealset-")) {
+                const itemsList = item.items
+                  .map((i) => `${i.productName} (${i.stepName})`)
+                  .join(", ");
+                itemDiv.innerText = `${item.name} x${item.quantity} - $${
+                  item.price * item.quantity
+                } [${itemsList}]`;
+              } else {
+                itemDiv.innerText = `${item.name} (${item.optionName}) x${
+                  item.quantity
+                } - $${item.price * item.quantity}`;
+              }
+              orderDiv.appendChild(itemDiv);
+            });
+            orderDiv.innerHTML += `<div>Subtotal: $${order.total}</div><hr>`;
+            orderHistory.appendChild(orderDiv);
+            total += order.total;
+          });
+        } else {
+          orderHistory.innerText = "No orders recorded";
+        }
+        tableTotal.innerText = total;
+      }
+
+      // Print receipt
+      function printTable() {
+        if (!selectedTable) {
+          console.error("No table selected for printing.");
+          showError("Please select a table!");
+          return;
+        }
+        if (selectedTable.orders.length === 0) {
+          showError("No orders to print!");
+          return;
+        }
+        const printArea = document.getElementById("print-area");
+        printArea.innerHTML = `
+        <h2>Table ${selectedTable.id} Receipt</h2>
+        <p>Print Time: ${new Date().toLocaleString("en-US")}</p>
+        <hr>
+        ${selectedTable.orders
+          .map(
+            (order, index) => `
+          <h3>Order ${index + 1} (${order.timestamp})</h3>
+          ${order.items
+            .map(
+              (item) => `
+            <p>${item.name}${
+                item.id.startsWith("mealset-")
+                  ? ` [${item.items
+                      .map((i) => `${i.productName} (${i.stepName})`)
+                      .join(", ")}]`
+                  : ` (${item.optionName})`
+              } x${item.quantity} - $${item.price * item.quantity}</p>
+          `
+            )
+            .join("")}
+          <p>Subtotal: $${order.total}</p>
+          <hr>
+        `
+          )
+          .join("")}
+        <h3>Total: $${selectedTable.orders.reduce(
+          (sum, order) => sum + order.total,
+          0
+        )}</h3>
+      `;
+        window.print();
+      }
+
+      // Open checkout dialog
+      function openCheckout() {
+        if (!selectedTable) {
+          console.error("No table selected for checkout.");
+          showError("Please select a table!");
+          return;
+        }
+        console.log(`Opening checkout for table ${selectedTable.id}`);
+        if (selectedTable.orders.length === 0) {
+          showError("No orders to checkout!");
+          return;
+        }
+        const dialog = document.getElementById("checkout-dialog");
+        const checkoutItems = document.getElementById("checkout-items");
+        const checkoutTotal = document.getElementById("checkout-total");
+        if (!dialog || !checkoutItems || !checkoutTotal) {
+          console.error("Checkout dialog elements not found.");
+          showError("Checkout interface failed, please refresh!");
+          return;
+        }
+        document.getElementById(
+          "checkout-table-title"
+        ).innerText = `Table ${selectedTable.id} Checkout`;
+        checkoutItems.innerHTML = "";
+        let total = 0;
+        selectedTable.orders.forEach((order, index) => {
+          const orderDiv = document.createElement("div");
+          orderDiv.innerHTML = `<strong>Order ${index + 1} (${
+            order.timestamp
+          }):</strong>`;
+          order.items.forEach((item) => {
+            const itemDiv = document.createElement("div");
+            if (item.id.startsWith("mealset-")) {
+              const itemsList = item.items
+                .map((i) => `${i.productName} (${i.stepName})`)
+                .join(", ");
+              itemDiv.innerText = `${item.name} x${item.quantity} - $${
+                item.price * item.quantity
+              } [${itemsList}]`;
+            } else {
+              itemDiv.innerText = `${item.name} (${item.optionName}) x${
+                item.quantity
+              } - $${item.price * item.quantity}`;
+            }
+            orderDiv.appendChild(itemDiv);
+          });
+          checkoutItems.appendChild(orderDiv);
+          total += order.total;
+        });
+        checkoutTotal.innerText = total;
+        priceModifier = "";
+        document.getElementById("price-modifier").value = "";
+        dialog.showModal();
+      }
+
+      // Number pad input
+      function appendToPriceModifier(value) {
+        priceModifier += value;
+        document.getElementById("price-modifier").value = priceModifier;
+      }
+
+      // Clear number pad input
+      function clearPriceModifier() {
+        priceModifier = "";
+        document.getElementById("price-modifier").value = "";
+        updateCheckoutTotal();
+      }
+
+      // Apply price modifier
+      function applyPriceModifier(operation, unit) {
+        const value = parseFloat(priceModifier);
+        if (isNaN(value)) {
+          showError("Please enter a valid number!");
+          return;
+        }
+        const checkoutTotal = document.getElementById("checkout-total");
+        let total = parseFloat(checkoutTotal.innerText);
+        if (unit === "%") {
+          if (operation === "+") total *= 1 + value / 100;
+          else if (operation === "-") total *= 1 - value / 100;
+        } else if (unit === "$") {
+          if (operation === "+") total += value;
+          else if (operation === "-") total -= value;
+        }
+        total = Math.round(total);
+        if (total < 0) total = 0;
+        checkoutTotal.innerText = total;
+        priceModifier = "";
+        document.getElementById("price-modifier").value = "";
+      }
+
+      // Update checkout total
+      function updateCheckoutTotal() {
+        if (!selectedTable) {
+          console.error("No table selected for updating checkout total.");
+          return;
+        }
+        const checkoutTotal = document.getElementById("checkout-total");
+        const total = selectedTable.orders.reduce(
+          (sum, order) => sum + order.total,
+          0
+        );
+        checkoutTotal.innerText = total;
+      }
+
+      // Confirm checkout
+      function confirmCheckout() {
+        if (!selectedTable) {
+          console.error("No table selected for checkout.");
+          showError("Please select a table!");
+          return;
+        }
+        const total = parseFloat(
+          document.getElementById("checkout-total").innerText
+        );
+        paymentHistory.push({
+          tableId: selectedTable.id,
+          amount: total,
+          timestamp: new Date().toLocaleString("en-US"),
+        });
+        document.getElementById("checkout-dialog").close();
+        const confirmDialog = document.getElementById("confirm-dialog");
+        document.getElementById(
+          "confirm-message"
+        ).innerText = `Table ${selectedTable.id} Checked Out $${total}`;
+        confirmDialog.showModal();
+      }
+
+      // Complete checkout
+      function confirmCheckoutComplete() {
+        if (!selectedTable) {
+          console.error("No table selected for completing checkout.");
+          return;
+        }
+        console.log(`Checkout completed for table ${selectedTable.id}`);
+        selectedTable.occupied = false;
+        selectedTable.guests = 0;
+        selectedTable.orders = [];
+        selectedTable.cart = [];
+        saveData();
+        document.getElementById("confirm-dialog").close();
+        document.getElementById("table-details").style.display = "none";
+        displayTables();
+        openTab("home");
+        selectedTable = null;
+      }
+
+      // Update payment history
+      function updatePaymentHistory() {
+        const paymentHistoryDiv = document.getElementById("payment-history");
+        if (!paymentHistoryDiv) {
+          console.error("Payment history not found.");
+          return;
+        }
+        paymentHistoryDiv.innerHTML = "";
+        if (paymentHistory.length > 0) {
+          paymentHistory.forEach((record, index) => {
+            const recordDiv = document.createElement("div");
+            recordDiv.innerHTML = `
+            <strong>Record ${index + 1} (${record.timestamp}):</strong>
+            <div>Table ${record.tableId} - $${record.amount}</div>
+            <hr>
+          `;
+            paymentHistoryDiv.appendChild(recordDiv);
+          });
+        } else {
+          paymentHistoryDiv.innerText = "No payment records";
+        }
+      }
+
+      // Add category
+      function addCategory() {
+        const name = document.getElementById("category-name").value.trim();
+        if (!name) {
+          showError("Please enter a category name!");
+          return;
+        }
+        if (
+          categories.some((c) => c.name.toLowerCase() === name.toLowerCase())
+        ) {
+          showError("Category already exists!");
+          return;
+        }
+        categories.push({ id: nextCategoryId++, name });
+        saveData();
+        updateCategoryList();
+        updateCategorySelect();
+        document.getElementById("category-name").value = "";
+        showError("Category added!");
+      }
+
+      // Delete category
+      function deleteCategory(categoryId) {
+        if (products.some((p) => p.categoryId === categoryId)) {
+          showError("Cannot delete category in use by products!");
+          return;
+        }
+        categories = categories.filter((c) => c.id !== categoryId);
+        saveData();
+        updateCategoryList();
+        updateCategorySelect();
+        updateCategoryTabs();
+      }
+
+      // Update category list
+      function updateCategoryList() {
+        const categoryList = document.getElementById("category-list");
+        if (!categoryList) {
+          console.error("Category list not found.");
+          return;
+        }
+        categoryList.innerHTML = "";
+        categories.forEach((category) => {
+          const categoryDiv = document.createElement("div");
+          categoryDiv.innerHTML = `
+          ${category.name}
+          <button class="delete-btn" onclick="deleteCategory(${category.id})">Delete</button>
+        `;
+          categoryList.appendChild(categoryDiv);
+        });
+        if (categories.length === 0) {
+          categoryList.innerText = "No categories";
+        }
+      }
+
+      // Add option
+      function addOption() {
+        const name = document.getElementById("option-name").value.trim();
+        if (!name) {
+          showError("Please enter an option name!");
+          return;
+        }
+        if (options.some((o) => o.name.toLowerCase() === name.toLowerCase())) {
+          showError("Option already exists!");
+          return;
+        }
+        options.push({ id: nextOptionId++, name });
+        saveData();
+        updateOptionList();
+        updateOptionSelect();
+        document.getElementById("option-name").value = "";
+        showError("Option added!");
+      }
+
+      // Delete option
+      function deleteOption(optionId) {
+        products.forEach(
+          (p) => (p.optionIds = p.optionIds.filter((id) => id !== optionId))
+        );
+        options = options.filter((o) => o.id !== optionId);
+        saveData();
+        updateOptionList();
+        updateOptionSelect();
+        updateProductList();
+      }
+
+      // Update option list
+      function updateOptionList() {
+        const optionList = document.getElementById("option-list");
+        if (!optionList) {
+          console.error("Option list not found.");
+          return;
+        }
+        optionList.innerHTML = "";
+        options.forEach((option) => {
+          const optionDiv = document.createElement("div");
+          optionDiv.innerHTML = `
+          ${option.name}
+          <button class="delete-btn" onclick="deleteOption(${option.id})">Delete</button>
+        `;
+          optionList.appendChild(optionDiv);
+        });
+        if (options.length === 0) {
+          optionList.innerText = "No options";
+        }
+      }
+
+      // Update category select
+      function updateCategorySelect() {
+        const categorySelect = document.getElementById("product-category");
+        if (!categorySelect) {
+          console.error("Category select not found.");
+          return;
+        }
+        categorySelect.innerHTML =
+          '<option value="">Select Category</option>' +
+          categories
+            .map((c) => `<option value="${c.id}">${c.name}</option>`)
+            .join("");
+      }
+
+      // Update option select
+      function updateOptionSelect() {
+        const optionSelect = document.getElementById("product-options");
+        if (!optionSelect) {
+          console.error("Option select not found.");
+          return;
+        }
+        optionSelect.innerHTML = options
+          .map((o) => `<option value="${o.id}">${o.name}</option>`)
+          .join("");
+      }
+
+      // Add product
+      function addProduct() {
+        const name = document.getElementById("product-name").value.trim();
+        const price = parseFloat(
+          document.getElementById("product-price").value
+        );
+        const categoryId = parseInt(
+          document.getElementById("product-category").value
+        );
+        const optionIds = Array.from(
+          document.getElementById("product-options").selectedOptions
+        ).map((o) => parseInt(o.value));
+        if (
+          !name ||
+          isNaN(price) ||
+          price < 0 ||
+          !categoryId ||
+          optionIds.length === 0
+        ) {
+          showError(
+            "Please fill in valid product name, price, category, and at least one option!"
+          );
+          return;
+        }
+        if (!categories.find((c) => c.id === categoryId)) {
+          showError("Invalid category selected!");
+          return;
+        }
+        if (optionIds.some((id) => !options.find((o) => o.id === id))) {
+          showError("Invalid options selected!");
+          return;
+        }
+        products.push({
+          id: nextProductId++,
+          name,
+          price: Math.round(price),
+          categoryId,
+          optionIds,
+        });
+        saveData();
+        updateProductList();
+        updateCategoryTabs();
+        updateMealSetStepProductSelect();
+        document.getElementById("product-name").value = "";
+        document.getElementById("product-price").value = "";
+        document.getElementById("product-category").value = "";
+        document.getElementById("product-options").selectedIndex = -1;
+        showError("Product added!");
+      }
+
+      // Delete product
+      function deleteProduct(productId) {
+        products = products.filter((p) => p.id !== productId);
+        mealSetSteps.forEach(
+          (s) => (s.productIds = s.productIds.filter((id) => id !== productId))
+        );
+        saveData();
+        updateProductList();
+        updateMealSetStepProductSelect();
+        updateMealSetStepList();
+      }
+
+      // Update product list
+      function updateProductList() {
+        const productList = document.getElementById("product-list");
+        if (!productList) {
+          console.error("Product list not found.");
+          return;
+        }
+        productList.innerHTML = "";
+        products.forEach((product) => {
+          const category = categories.find((c) => c.id === product.categoryId);
+          const optionNames = product.optionIds
+            .map((id) => options.find((o) => o.id === id)?.name || "N/A")
+            .join(", ");
+          const productDiv = document.createElement("div");
+          productDiv.innerHTML = `
+          ${product.name} (${category ? category.name : "N/A"}) - $${
+            product.price
+          } [${optionNames}]
+          <button class="delete-btn" onclick="deleteProduct(${
+            product.id
+          })">Delete</button>
+        `;
+          productList.appendChild(productDiv);
+        });
+        if (products.length === 0) {
+          productList.innerText = "No products";
+        }
+      }
+
+      // Add meal set category
+      function addMealSetCategory() {
+        const name = document
+          .getElementById("mealset-category-name")
+          .value.trim();
+        if (!name) {
+          showError("Please enter a meal set category name!");
+          return;
+        }
+        if (
+          mealSetCategories.some(
+            (c) => c.name.toLowerCase() === name.toLowerCase()
+          )
+        ) {
+          showError("Meal set category already exists!");
+          return;
+        }
+        mealSetCategories.push({ id: nextMealSetCategoryId++, name });
+        saveData();
+        updateMealSetCategoryList();
+        updateMealSetItemCategorySelect();
+        document.getElementById("mealset-category-name").value = "";
+        showError("Meal set category added!");
+      }
+
+      // Delete meal set category
+      function deleteMealSetCategory(categoryId) {
+        if (mealSetItems.some((i) => i.categoryId === categoryId)) {
+          showError("Cannot delete category in use by meal set items!");
+          return;
+        }
+        mealSetCategories = mealSetCategories.filter(
+          (c) => c.id !== categoryId
+        );
+        saveData();
+        updateMealSetCategoryList();
+        updateMealSetItemCategorySelect();
+      }
+
+      // Update meal set category list
+      function updateMealSetCategoryList() {
+        const list = document.getElementById("mealset-category-list");
+        if (!list) {
+          console.error("Meal set category list not found.");
+          return;
+        }
+        list.innerHTML = "";
+        mealSetCategories.forEach((category) => {
+          const div = document.createElement("div");
+          div.innerHTML = `
+          ${category.name}
+          <button class="delete-btn" onclick="deleteMealSetCategory(${category.id})">Delete</button>
+        `;
+          list.appendChild(div);
+        });
+        if (mealSetCategories.length === 0) {
+          list.innerText = "No meal set categories";
+        }
+      }
+
+      // Add meal set item
+      function addMealSetItem() {
+        const name = document.getElementById("mealset-item-name").value.trim();
+        const categoryId = parseInt(
+          document.getElementById("mealset-item-category").value
+        );
+        const stepIds = Array.from(
+          document.getElementById("mealset-item-steps").selectedOptions
+        ).map((o) => parseInt(o.value));
+        if (!name || !categoryId || stepIds.length === 0) {
+          showError(
+            "Please fill in valid name, category, and at least one step!"
+          );
+          return;
+        }
+        if (!mealSetCategories.find((c) => c.id === categoryId)) {
+          showError("Invalid category selected!");
+          return;
+        }
+        if (stepIds.some((id) => !mealSetSteps.find((s) => s.id === id))) {
+          showError("Invalid steps selected!");
+          return;
+        }
+        mealSetItems.push({
+          id: nextMealSetItemId++,
+          name,
+          categoryId,
+          stepIds,
+        });
+        saveData();
+        updateMealSetItemList();
+        document.getElementById("mealset-item-name").value = "";
+        document.getElementById("mealset-item-category").value = "";
+        document.getElementById("mealset-item-steps").selectedIndex = -1;
+        showError("Meal set item added!");
+      }
+
+      // Delete meal set item
+      function deleteMealSetItem(itemId) {
+        mealSetItems = mealSetItems.filter((i) => i.id !== itemId);
+        saveData();
+        updateMealSetItemList();
+      }
+
+      // Update meal set item list
+      function updateMealSetItemList() {
+        const list = document.getElementById("mealset-item-list");
+        if (!list) {
+          console.error("Meal set item list not found.");
+          return;
+        }
+        list.innerHTML = "";
+        mealSetItems.forEach((item) => {
+          const category = mealSetCategories.find(
+            (c) => c.id === item.categoryId
+          );
+          const stepNames = item.stepIds
+            .map((id) => mealSetSteps.find((s) => s.id === id)?.name || "N/A")
+            .join(", ");
+          const div = document.createElement("div");
+          div.innerHTML = `
+          ${item.name} (${category ? category.name : "N/A"}) [${stepNames}]
+          <button class="delete-btn" onclick="deleteMealSetItem(${
+            item.id
+          })">Delete</button>
+        `;
+          list.appendChild(div);
+        });
+        if (mealSetItems.length === 0) {
+          list.innerText = "No meal set items";
+        }
+      }
+
+      // Add meal set step
+      function addMealSetStep() {
+        const name = document.getElementById("mealset-step-name").value.trim();
+        const minSelections = parseInt(
+          document.getElementById("mealset-step-min").value
+        );
+        const maxSelections = parseInt(
+          document.getElementById("mealset-step-max").value
+        );
+        const isMandatory = document.getElementById(
+          "mealset-step-mandatory"
+        ).checked;
+        const productIds = Array.from(
+          document.getElementById("mealset-step-products").selectedOptions
+        ).map((o) => parseInt(o.value));
+        if (
+          !name ||
+          isNaN(minSelections) ||
+          minSelections < 0 ||
+          isNaN(maxSelections) ||
+          maxSelections < 1 ||
+          minSelections > maxSelections ||
+          productIds.length === 0
+        ) {
+          showError(
+            "Please fill in valid name, min/max selections (min ≤ max), and at least one product!"
+          );
+          return;
+        }
+        mealSetSteps.push({
+          id: nextMealSetStepId++,
+          name,
+          minSelections,
+          maxSelections,
+          isMandatory,
+          productIds,
+        });
+        saveData();
+        updateMealSetStepList();
+        updateMealSetItemStepSelect();
+        document.getElementById("mealset-step-name").value = "";
+        document.getElementById("mealset-step-min").value = "";
+        document.getElementById("mealset-step-max").value = "";
+        document.getElementById("mealset-step-mandatory").checked = false;
+        document.getElementById("mealset-step-products").selectedIndex = -1;
+        showError("Meal set step added!");
+      }
+
+      // Delete meal set step
+      function deleteMealSetStep(stepId) {
+        if (mealSetItems.some((i) => i.stepIds.includes(stepId))) {
+          showError("Cannot delete step in use by meal set items!");
+          return;
+        }
+        mealSetSteps = mealSetSteps.filter((s) => s.id !== stepId);
+        saveData();
+        updateMealSetStepList();
+        updateMealSetItemStepSelect();
+      }
+
+      // Update meal set step list
+      function updateMealSetStepList() {
+        const list = document.getElementById("mealset-step-list");
+        if (!list) {
+          console.error("Meal set step list not found.");
+          return;
+        }
+        list.innerHTML = "";
+        mealSetSteps.forEach((step) => {
+          const productNames = step.productIds
+            .map((id) => products.find((p) => p.id === id)?.name || "N/A")
+            .join(", ");
+          const div = document.createElement("div");
+          div.innerHTML = `
+          ${step.name} (Min: ${step.minSelections}, Max: ${
+            step.maxSelections
+          }, ${step.isMandatory ? "Mandatory" : "Optional"}) [${productNames}]
+          <button class="delete-btn" onclick="deleteMealSetStep(${
+            step.id
+          })">Delete</button>
+        `;
+          list.appendChild(div);
+        });
+        if (mealSetSteps.length === 0) {
+          list.innerText = "No meal set steps";
+        }
+      }
+
+      // Update meal set item category select
+      function updateMealSetItemCategorySelect() {
+        const select = document.getElementById("mealset-item-category");
+        if (!select) {
+          console.error("Meal set item category select not found.");
+          return;
+        }
+        select.innerHTML =
+          '<option value="">Select Category</option>' +
+          mealSetCategories
+            .map((c) => `<option value="${c.id}">${c.name}</option>`)
+            .join("");
+      }
+
+      // Update meal set item step select
+      function updateMealSetItemStepSelect() {
+        const select = document.getElementById("mealset-item-steps");
+        if (!select) {
+          console.error("Meal set item step select not found.");
+          return;
+        }
+        select.innerHTML = mealSetSteps
+          .map((s) => `<option value="${s.id}">${s.name}</option>`)
+          .join("");
+      }
+
+      // Update meal set step product select
+      function updateMealSetStepProductSelect() {
+        const select = document.getElementById("mealset-step-products");
+        if (!select) {
+          console.error("Meal set step product select not found.");
+          return;
+        }
+        select.innerHTML = products
+          .map((p) => `<option value="${p.id}">${p.name}</option>`)
+          .join("");
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", () => {
+        loadData();
+        openTab("home");
+        displayTables();
+        updateCategoryList();
+        updateOptionList();
+        updateProductList();
+        updateMealSetCategoryList();
+        updateMealSetItemList();
+        updateMealSetStepList();
+      });
+    </script>
+  </body>
+</html>
